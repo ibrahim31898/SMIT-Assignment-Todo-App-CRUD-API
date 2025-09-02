@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Todo App</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-tasks"></i> Todo Manager</h1>
+            <p>Stay organized and productive</p>
+        </header>
+
+        <!-- Add Task Form -->
+        <div class="add-task-section">
+            <form id="todoForm" class="todo-form">
+                <div class="form-group">
+                    <input 
+                        type="text" 
+                        id="taskTitle" 
+                        placeholder="Enter task title..." 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <div class="form-group">
+                    <textarea 
+                        id="taskDescription" 
+                        placeholder="Task description (optional)..." 
+                        rows="3"
+                    ></textarea>
+                </div>
+                <div class="form-group">
+                    <select id="taskPriority">
+                        <option value="low">Low Priority</option>
+                        <option value="medium" selected>Medium Priority</option>
+                        <option value="high">High Priority</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Add Task
+                    </button>
+                    <button type="button" id="cancelEdit" class="btn btn-secondary" style="display: none;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Task Statistics -->
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-number" id="totalTasks">0</span>
+                <span class="stat-label">Total Tasks</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="completedTasks">0</span>
+                <span class="stat-label">Completed</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="pendingTasks">0</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+
+        <!-- Task Actions -->
+        <div class="task-actions">
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">All Tasks</button>
+                <button class="filter-btn" data-filter="pending">Pending</button>
+                <button class="filter-btn" data-filter="completed">Completed</button>
+            </div>
+            <button id="deleteAllBtn" class="btn btn-danger">
+                <i class="fas fa-trash-alt"></i> Delete All
+            </button>
+        </div>
+
+        <!-- Tasks List -->
+        <div class="tasks-container">
+            <div id="loadingSpinner" class="loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading tasks...
+            </div>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="fas fa-clipboard-list"></i>
+                <h3>No tasks yet</h3>
+                <p>Add your first task to get started!</p>
+            </div>
+            <div id="todoList" class="todo-list"></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Action</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-actions">
+                <button id="confirmYes" class="btn btn-danger">Yes, Delete</button>
+                <button id="confirmNo" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        // Frontend JavaScript for Todo App
+        class TodoApp {
+            constructor() {
+                this.todos = [];
+                this.editingId = null;
+                this.currentFilter = 'all';
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadTodos();
+            }
+
+            bindEvents() {
+                // Form submission
+                document.getElementById('todoForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleSubmit();
+                });
+
+                // Cancel edit
+                document.getElementById('cancelEdit').addEventListener('click', () => {
+                    this.cancelEdit();
+                });
+
+                // Delete all tasks
+                document.getElementById('deleteAllBtn').addEventListener('click', () => {
+                    this.confirmDeleteAll();
+                });
+
+                // Filter buttons
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.setFilter(e.target.dataset.filter);
+                    });
+                });
+
+                // Modal events
+                document.getElementById('confirmYes').addEventListener('click', () => {
+                    this.executeConfirmedAction();
+                });
+
+                document.getElementById('confirmNo').addEventListener('click', () => {
+                    this.hideModal();
+                });
+
+                // Close modal on outside click
+                document.getElementById('confirmModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'confirmModal') {
+                        this.hideModal();
+                    }
+                });
+            }
+
+            async loadTodos() {
+                this.showLoading(true);
+                try {
+                    const response = await fetch('/api/todos');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.todos = result.data;
+                        this.renderTodos();
+                        this.updateStats();
+                    } else {
+                        this.showToast('Error loading tasks', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error loading todos:', error);
+                    this.showToast('Failed to load tasks', 'error');
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+
+            async handleSubmit() {
+                const title = document.getElementById('taskTitle').value.trim();
+                const description = document.getElementById('taskDescription').value.trim();
+                const priority = document.getElementById('taskPriority').value;
+
+                if (!title) {
+                    this.showToast('Please enter a task title', 'error');
+                    return;
+                }
+
+                const taskData = { title, description, priority };
+
+                try {
+                    if (this.editingId) {
+                        await this.updateTask(this.editingId, taskData);
+                    } else {
+                        await this.createTask(taskData);
+                    }
+                } catch (error) {
+                    console.error('Error submitting task:', error);
+                    this.showToast('Failed to save task', 'error');
+                }
+            }
+
+            async createTask(taskData) {
+                const response = await fetch('/api/todos', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(taskData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.showToast('Task created successfully!', 'success');
+                    this.clearForm();
+                    this.loadTodos();
+                } else {
+                    this.showToast(result.error || 'Failed to create task', 'error');
+                }
+            }
+
+            async updateTask(id, taskData) {
+                const response = await fetch(`/api/todos/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(taskData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.showToast('Task updated successfully!', 'success');
+                    this.cancelEdit();
+                    this.loadTodos();
+                } else {
+                    this.showToast(result.error || 'Failed to update task', 'error');
+                }
+            }
+
+            async toggleTask(id) {
+                try {
+                    const response = await fetch(`/api/todos/${id}/toggle`, {
+                        method: 'PATCH'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.loadTodos();
+                        this.showToast('Task status updated!', 'success');
+                    } else {
+                        this.showToast(result.error || 'Failed to toggle task', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error toggling task:', error);
+                    this.showToast('Failed to update task status', 'error');
+                }
+            }
+
+            async deleteTask(id) {
+                try {
+                    const response = await fetch(`/api/todos/${id}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.loadTodos();
+                        this.showToast('Task deleted successfully!', 'success');
+                    } else {
+                        this.showToast(result.error || 'Failed to delete task', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting task:', error);
+                    this.showToast('Failed to delete task', 'error');
+                }
+            }
+
+            async deleteAllTasks() {
+                try {
+                    const response = await fetch('/api/todos', {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.loadTodos();
+                        this.showToast(`${result.deletedCount} tasks deleted!`, 'success');
+                    } else {
+                        this.showToast(result.error || 'Failed to delete tasks', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting all tasks:', error);
+                    this.showToast('Failed to delete tasks', 'error');
+                }
+            }
+
+            editTask(task) {
+                this.editingId = task._id;
+                document.getElementById('taskTitle').value = task.title;
+                document.getElementById('taskDescription').value = task.description || '';
+                document.getElementById('taskPriority').value = task.priority;
+                
+                document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save"></i> Update Task';
+                document.getElementById('cancelEdit').style.display = 'inline-block';
+                
+                // Scroll to form
+                document.querySelector('.add-task-section').scrollIntoView({ 
+                    behavior: 'smooth' 
+                });
+            }
+
+            cancelEdit() {
+                this.editingId = null;
+                this.clearForm();
+                document.getElementById('submitBtn').innerHTML = '<i class="fas fa-plus"></i> Add Task';
+                document.getElementById('cancelEdit').style.display = 'none';
+            }
+
+            clearForm() {
+                document.getElementById('todoForm').reset();
+                document.getElementById('taskPriority').value = 'medium';
+            }
+
+            renderTodos() {
+                const todoList = document.getElementById('todoList');
+                const filteredTodos = this.getFilteredTodos();
+
+                if (filteredTodos.length === 0) {
+                    document.getElementById('emptyState').style.display = 'block';
+                    todoList.innerHTML = '';
+                    return;
+                } else {
+                    document.getElementById('emptyState').style.display = 'none';
+                }
+
+                todoList.innerHTML = filteredTodos.map(todo => this.createTaskHTML(todo)).join('');
+            }
+
+            createTaskHTML(todo) {
+                const priorityClass = `priority-${todo.priority}`;
+                const completedClass = todo.completed ? 'completed' : '';
+                const createdDate = new Date(todo.createdAt).toLocaleDateString();
+
+                return `
+                    <div class="todo-item ${completedClass} ${priorityClass}" data-id="${todo._id}">
+                        <div class="todo-content">
+                            <div class="todo-header">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" ${todo.completed ? 'checked' : ''} 
+                                           onchange="todoApp.toggleTask('${todo._id}')">
+                                    <span class="checkmark"></span>
+                                </label>
+                                <div class="todo-info">
+                                    <h3 class="todo-title">${todo.title}</h3>
+                                    <div class="todo-meta">
+                                        <span class="priority-badge priority-${todo.priority}">${todo.priority.toUpperCase()}</span>
+                                        <span class="todo-date">Created: ${createdDate}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            ${todo.description ? `<p class="todo-description">${todo.description}</p>` : ''}
+                        </div>
+                        <div class="todo-actions">
+                            <button class="action-btn edit-btn" onclick="todoApp.editTask(${JSON.stringify(todo).replace(/"/g, '&quot;')})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn delete-btn" onclick="todoApp.confirmDelete('${todo._id}', '${todo.title}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            getFilteredTodos() {
+                switch (this.currentFilter) {
+                    case 'completed':
+                        return this.todos.filter(todo => todo.completed);
+                    case 'pending':
+                        return this.todos.filter(todo => !todo.completed);
+                    default:
+                        return this.todos;
+                }
+            }
+
+            setFilter(filter) {
+                this.currentFilter = filter;
+                
+                // Update active filter button
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+                
+                this.renderTodos();
+            }
+
+            updateStats() {
+                const total = this.todos.length;
+                const completed = this.todos.filter(todo => todo.completed).length;
+                const pending = total - completed;
+
+                document.getElementById('totalTasks').textContent = total;
+                document.getElementById('completedTasks').textContent = completed;
+                document.getElementById('pendingTasks').textContent = pending;
+            }
+
+            confirmDelete(id, title) {
+                this.showModal(
+                    `Are you sure you want to delete "${title}"?`,
+                    () => this.deleteTask(id)
+                );
+            }
+
+            confirmDeleteAll() {
+                if (this.todos.length === 0) {
+                    this.showToast('No tasks to delete', 'info');
+                    return;
+                }
+                
+                this.showModal(
+                    `Are you sure you want to delete all ${this.todos.length} tasks?`,
+                    () => this.deleteAllTasks()
+                );
+            }
+
+            showModal(message, callback) {
+                document.getElementById('confirmMessage').textContent = message;
+                document.getElementById('confirmModal').style.display = 'flex';
+                this.pendingCallback = callback;
+            }
+
+            hideModal() {
+                document.getElementById('confirmModal').style.display = 'none';
+                this.pendingCallback = null;
+            }
+
+            executeConfirmedAction() {
+                if (this.pendingCallback) {
+                    this.pendingCallback();
+                }
+                this.hideModal();
+            }
+
+            showLoading(show) {
+                document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+            }
+
+            showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.className = `toast toast-${type}`;
+                
+                const icon = type === 'success' ? 'check-circle' : 
+                           type === 'error' ? 'exclamation-triangle' : 
+                           'info-circle';
+                
+                toast.innerHTML = `
+                    <i class="fas fa-${icon}"></i>
+                    <span>${message}</span>
+                `;
+
+                document.getElementById('toastContainer').appendChild(toast);
+
+                // Remove toast after 3 seconds
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
+        }
+
+        // Initialize the app
+        const todoApp = new TodoApp();
+    </script>
+</body>
+</html>
