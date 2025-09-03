@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.static(__dirname));
 
 // MongoDB connection
-const uri = 'mongodb+srv://ijan80348:shinryuken80348@cluster0.jtbtbsl.mongodb.net/';
+const uri = 'mongodb+srv://ijan80348:shinryuken80348@cluster0.jtbtbsl.mongodb.net/todoapp';
 const client = new MongoClient(uri);
 const dbName = 'ijan80348';
 
@@ -25,7 +25,7 @@ async function connectDB() {
         await client.connect();
         console.log('✅ Connected successfully to MongoDB!');
         db = client.db(dbName);
-        collection = db.collection('todos');
+        collection = db.collection('todoapp');
     } catch (error) {
         console.error('❌ Database connection failed:', error);
         process.exit(1);
