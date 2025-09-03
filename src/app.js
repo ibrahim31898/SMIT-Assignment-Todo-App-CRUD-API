@@ -40,7 +40,7 @@ app.get('/', (req, res) => {
 });
 
 // 1. GET all tasks
-app.get('/api/todos', async (req, res) => {
+app.get('/api/todoapp', async (req, res) => {
     try {
         const todos = await collection.find({}).sort({ createdAt: -1 }).toArray();
         res.json({ success: true, data: todos });
@@ -50,7 +50,7 @@ app.get('/api/todos', async (req, res) => {
 });
 
 // 2. GET single task by ID
-app.get('/api/todos/:id', async (req, res) => {
+app.get('/api/todoapp/:id', async (req, res) => {
     try {
         const { id } = req.params;
         if (!ObjectId.isValid(id)) {
@@ -69,7 +69,7 @@ app.get('/api/todos/:id', async (req, res) => {
 });
 
 // 3. CREATE new task
-app.post('/api/todos', async (req, res) => {
+app.post('/api/todoapp', async (req, res) => {
     try {
         const { title, description, priority = 'medium' } = req.body;
         
@@ -100,7 +100,7 @@ app.post('/api/todos', async (req, res) => {
 });
 
 // 4. UPDATE task
-app.put('/api/todos/:id', async (req, res) => {
+app.put('/api/todoapp/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { title, description, priority, completed } = req.body;
@@ -137,7 +137,7 @@ app.put('/api/todos/:id', async (req, res) => {
 });
 
 // 5. DELETE single task
-app.delete('/api/todos/:id', async (req, res) => {
+app.delete('/api/todoapp/:id', async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -162,7 +162,7 @@ app.delete('/api/todos/:id', async (req, res) => {
 });
 
 // 6. DELETE all tasks
-app.delete('/api/todos', async (req, res) => {
+app.delete('/api/todoapp', async (req, res) => {
     try {
         const result = await collection.deleteMany({});
         res.json({ 
@@ -176,7 +176,7 @@ app.delete('/api/todos', async (req, res) => {
 });
 
 // 7. Toggle task completion
-app.patch('/api/todos/:id/toggle', async (req, res) => {
+app.patch('/api/todoapp/:id/toggle', async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -226,13 +226,13 @@ app.get('/api', (req, res) => {
         message: 'Professional Todo API',
         version: '1.0.0',
         endpoints: {
-            'GET /api/todos': 'Get all tasks',
-            'GET /api/todos/:id': 'Get single task',
-            'POST /api/todos': 'Create new task',
-            'PUT /api/todos/:id': 'Update task',
-            'DELETE /api/todos/:id': 'Delete task',
-            'DELETE /api/todos': 'Delete all tasks',
-            'PATCH /api/todos/:id/toggle': 'Toggle completion status'
+            'GET /api/todoapp': 'Get all tasks',
+            'GET /api/todoapp/:id': 'Get single task',
+            'POST /api/todoapp': 'Create new task',
+            'PUT /api/todoapp/:id': 'Update task',
+            'DELETE /api/todoapp/:id': 'Delete task',
+            'DELETE /api/todoapp': 'Delete all tasks',
+            'PATCH /api/todoapp/:id/toggle': 'Toggle completion status'
         }
     });
 });
@@ -264,7 +264,7 @@ async function startServer() {
         console.log(`📍 API Base URL: http://localhost:${PORT}/api`);
         console.log(`🌐 Web App: http://localhost:${PORT}`);
         console.log(`📊 MongoDB Database: ${dbName}`);
-        console.log(`📝 Collection: todos`);
+        console.log(`📝 Collection: todoapp`);
     });
 }
 
