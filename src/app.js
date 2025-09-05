@@ -294,4 +294,10 @@ process.on('unhandledRejection', (error) => {
     process.exit(1);
 });
 
-startServer().catch(console.error);
+// Export the app and initializer for serverless (Vercel)
+module.exports = { app, connectDB };
+
+// Only start the server when run directly (local dev)
+if (require.main === module) {
+    startServer().catch(console.error);
+}

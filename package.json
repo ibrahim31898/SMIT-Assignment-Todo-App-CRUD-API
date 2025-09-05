@@ -16,6 +16,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "mongodb": "^6.19.0",
-    "mongoose": "^8.18.0"
+    "mongoose": "^8.18.0",
+    "serverless-http": "^3.2.0"
   }
 }
